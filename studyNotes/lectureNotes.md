@@ -115,3 +115,54 @@ $$ h_t = o_t \times tanh(c_t) $$
 3. Other NLP applications
    * POS tagging: T predictions, instead of 1 (like spam/ham)
    * Machine translation: input and output length differ ($T_x, T_y$)
+
+4. Apply RNN to images 
+   * H x W = 2 dimensions; can regard H as T, W as D ß
+   * We can also rotate the image and run bidrectional RNN on both, and so go in all 4 directions
+   * Bi-LSTM latent dim = M what does output look like in shape? 
+     * N x H x W -> N x H x 2M -> N x 2M (output)
+     * By rotation: N x W x H -> N x W x 2M -> N x 2M (output)
+     * Concat 2 N x 2M to N x 4M 
+     * Dense layer -> N x K
+
+## Sequence-to-sequence 
+### Architecture
+1. Dual RNN
+   * Encoder: no outputs, because not making predictions; only keep $h_T$ (return_sequences = False), the final state with static size M (thought vector)
+   * Decoder
+2. The decode
+   * New RNN unit
+   * Must have same vector size M 
+   * Pass <start-of-sentence> token into the "x" input
+3. Implementation issues
+   * Keras works with constant-sized data 
+   * Decoder input length during training is $T_y$
+   * Decode input length during prediction is 1 (conflict!)
+   * **Teacher forcing** 
+     * Pass in the true target sequence 
+     * Why? Difficult to learn to generate the entire sentence at once
+     * If you get a word wrong, the teacher may correct you, allowing you to work off the corrected sentence so far
+     * Note: must be offset by <SOS>
+4. Solution 
+   * Create 2 different models for training and sampling.
+   * Pseudo-code:
+
+   `emb = Embedding(); lstm = LSTM(); dense = Dense()`
+
+   `input1 = Input(length = Ty)`
+   `model1 = Model(input1, dense(lstm(emb(input1)))`
+
+   `input2 = Input(length = 1`
+
+   `model2 = Model(input2, dense(lstm(emb(input2)))`
+
+   `h = encoder model output; x= <SOS>`
+
+   `for t in range(Ty):` 
+
+   `x, h = model2.predict(x,h)`
+
+### Language modeling
+1. Next word prediction:  
+   $$P(w_t | w_{t-1}, w_{t-2}, ...)$$ 
+2. 
