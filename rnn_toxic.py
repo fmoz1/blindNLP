@@ -29,7 +29,7 @@ os.chdir('/Users/fangfeishu/Projects/advancedNLP')
 # load in pre-trained word vectors
 print('Loading word vectors...')
 word2vec = {}
-with open(os.path.join('./glove.6B/glove.6B.%sd.txt' % EMBEDDING_DIM)) as f:
+with open(os.path.join('./datafiles/glove.6B/glove.6B.%sd.txt' % EMBEDDING_DIM)) as f:
     for line in f:
         values = line.split()
         word = values[0]
@@ -40,7 +40,7 @@ print('Found %s word vectors.' % len(word2vec))
 # prepare text samples and their labels
 print('Loading in comments')
 train = pd.read_csv(
-    './jigsaw-toxic-comment-classification-challenge/train.csv')
+    './datafiles/jigsaw-toxic-comment-classification-challenge/train.csv')
 sentences = train['comment_text'].fillna('DUMMY_VALUE').values
 possible_labels = ['toxic',
                    'severe_toxic', 'obscene', 'threat', 'insult',
