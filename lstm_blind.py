@@ -3,12 +3,14 @@ import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
+import keras
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, Input, GlobalMaxPooling1D, MaxPooling1D
 from keras.layers import LSTM, Bidirectional, Dropout, Embedding
 from keras.models import Model
-from keras.metrics import AUC, Precision, Recall
+from keras import callbacks  # early stopping
 from tensorflow.keras.optimizers import Adam, SGD  # note add tensorflow
 from sklearn.metrics import roc_auc_score  # for evaluating classifier
 import tensorflow as tf  # for tensorflow metrics
@@ -18,8 +20,39 @@ MAX_SEQUENCE_LENGTH = 400  # truncate posts at length 400
 MAX_VOCAB_SIZE = 20000
 EMBEDDING_DIM = 100
 VALIDATION_SPLIT = 0.2
-BATCH_SIZE = 128
-EPOCHS = 10
+BATCH_SIZE = 2048  # make sure each batch has a chance of obtaining positive examples
+EPOCHS = 40
+EARLY_STOPPING = callbacks.EarlyStopping(monitor='val_loss',
+                                         mode='min', patience=5, restore_best_weights=True)
+METRICS = [
+    keras.metrics.TruePositives(name='tp'),
+    keras.metrics.FalsePositives(name='fp'),
+    keras.metrics.TrueNegatives(name='tn'),
+    keras.metrics.FalseNegatives(name='fn'),
+    keras.metrics.BinaryAccuracy(name='accuracy'),
+    keras.metrics.Precision(name='precision'),
+    keras.metrics.Recall(name='recall'),
+    keras.metrics.AUC(name='auc'),
+    keras.metrics.AUC(name='prc', curve='PR'),  # precision-recall curve
+]  # list of metrics
+
+# visualize results
+
+
+def plot_cm(labels, predictions, p=0.5):
+    cm = tf.math.confusion_matrix(labels, predictions > p)
+    plt.figure(figsize=(5, 5))
+    sns.heatmap(cm, annot=True, fmt="d")
+    plt.title('Confusion matrix @{:.2f}'.format(p))
+    plt.ylabel('Actual label')
+    plt.xlabel('Predicted label')
+
+    print('True Negatives: ', cm[0][0])
+    print('False Positives: ', cm[0][1])
+    print('False Negatives: ', cm[1][0])
+    print('True Positives: ', cm[1][1])
+    print('Total Positive: ', np.sum(cm[1]))
+
 
 # load data
 file_path = './datafiles/blindPosts/'  # original csvs separated by company
@@ -49,6 +82,19 @@ df['controversial'] = np.where(
 # keep poster company if available
 df = df[['post_text', 'post_firm', 'popular', 'controversial']]
 
+# imbalanced data correction
+# examine imbalance
+neg, pos = np.bincount(df['popular'])
+total = neg + pos
+INITIAL_BIAS = np.log([pos/neg])
+# class weights
+# scaling by total/2 helps keep the loss to a similar magnitude.
+# the sum of the weights of all examples stays the same.
+weight_for_0 = (1 / neg) * (total / 2.0)
+weight_for_1 = (1 / pos) * (total / 2.0)
+CLASS_WEIGHT = {0: weight_for_0, 1: weight_for_1}
+print('Weight for class 0: {:.2f}'.format(weight_for_0))
+print('Weight for class 1: {:.2f}'.format(weight_for_1))
 
 # load in pre-trained word vectors
 print('Loading word vectors...')
@@ -62,7 +108,7 @@ with open(os.path.join('./datafiles/glove.6B/glove.6B.%sd.txt' % EMBEDDING_DIM))
 print('Found %s word vectors.' % len(word2vec))
 
 # prepare text samples and their labels
-print('Loading in comments')
+print('Loading in posts')
 train = df  # we use the entire data
 sentences = train['post_text'].fillna('DUMMY_VALUE').values
 possible_labels = ['controversial', 'popular']
@@ -117,7 +163,7 @@ model = Model(input_, output)
 model.compile(
     loss='binary_crossentropy',
     optimizer=Adam(learning_rate=0.01),
-    metrics=[AUC(name='auc')],
+    metrics=METRICS  # keep track of list of metrics
 )
 
 print('Training model...')
@@ -127,6 +173,8 @@ r = model.fit(
     batch_size=BATCH_SIZE,
     epochs=EPOCHS,
     validation_split=VALIDATION_SPLIT,
+    class_weight=CLASS_WEIGHT,
+    callbacks=[EARLY_STOPPING],
 )
 
 # plot some data
@@ -135,24 +183,24 @@ plt.plot(r.history['val_loss'], label='val_loss')
 plt.legend()
 plt.show()
 
-# accuracies
-plt.plot(r.history['accuracy'], label='acc')
-plt.plot(r.history['val_accuracy'], label='val_acc')
+# roc auc score
+plt.plot(r.history['auc'], label='auc')
+plt.plot(r.history['val_auc'], label='val_auc')
 plt.legend()
 plt.show()
 
-# plot the mean AUC over each label
+# recall
+plt.plot(r.history['recall'], label='recall')
+plt.plot(r.history['val_recall'], label='val_recall')
+plt.legend()
+plt.show()
+
+# eval model
 p = model.predict(data)
+plot_cm(targets[:, 1], p[:, 1])  # true vs predicted popular classifier
 
-aucs = []
-for j in range(2):  # two targets
-    auc = roc_auc_score(targets[:, j], p[:, j])
-    aucs.append(auc)
-
-print(np.mean(aucs))
-# check confusion matrix for imbalanced classification
-con_mat = tf.math.confusion_matrix(
-    labels=targets[:, 0], predictions=p[:, 0]).numpy()
+# roc auc score
+auc = roc_auc_score(targets[:, 1], p[:, 1])  # 0.944 latest
 
 # save model
 model.save('./model/blind_lstm')
