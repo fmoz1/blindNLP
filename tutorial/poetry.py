@@ -20,6 +20,8 @@ BATCH_SIZE = 128
 EPOCHS = 10
 LATENT_DIM = 25
 
+# set current directory
+os.chdir('/Users/fangfeishu/Projects/advancedNLP')
 
 # remove special chars in txt
 with open(r'./datafiles/poetry/whitman.txt', 'r') as infile, \

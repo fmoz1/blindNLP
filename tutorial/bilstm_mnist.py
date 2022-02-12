@@ -12,6 +12,9 @@ BATCH_SIZE = 32
 EPOCHS = 10
 VALIDATION_SPLIT = 0.3
 
+# set current directory
+os.chdir('/Users/fangfeishu/Projects/advancedNLP')
+
 
 def get_mnist(limit=None):
     if not os.path.exists('./datafiles/digit-recognizer'):

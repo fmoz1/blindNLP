@@ -8,8 +8,10 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, Input, GlobalMaxPooling1D, MaxPooling1D
 from keras.layers import LSTM, Bidirectional, Dropout, Embedding
 from keras.models import Model
-from tensorflow.keras.optimizers import Adam  # note add tensorflow
+from keras.metrics import AUC, Precision, Recall
+from tensorflow.keras.optimizers import Adam, SGD  # note add tensorflow
 from sklearn.metrics import roc_auc_score  # for evaluating classifier
+import tensorflow as tf  # for tensorflow metrics
 
 # model params
 MAX_SEQUENCE_LENGTH = 400  # truncate posts at length 400
@@ -115,7 +117,7 @@ model = Model(input_, output)
 model.compile(
     loss='binary_crossentropy',
     optimizer=Adam(learning_rate=0.01),
-    metrics=['accuracy']
+    metrics=[AUC(name='auc')],
 )
 
 print('Training model...')
@@ -148,4 +150,9 @@ for j in range(2):  # two targets
     aucs.append(auc)
 
 print(np.mean(aucs))
+# check confusion matrix for imbalanced classification
+con_mat = tf.math.confusion_matrix(
+    labels=targets[:, 0], predictions=p[:, 0]).numpy()
+
+# save model
 model.save('./model/blind_lstm')

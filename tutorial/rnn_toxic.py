@@ -8,7 +8,7 @@ from keras.preprocessing.sequence import pad_sequences
 from keras.layers import Dense, Input, GlobalMaxPooling1D, MaxPooling1D
 from keras.layers import LSTM, Bidirectional, Dropout, Embedding
 from keras.models import Model
-from tensorflow.keras.optimizers import Adam  # note add tensorflow
+from tensorflow.keras.optimizers import Adam, SGD  # note add tensorflow
 from sklearn.metrics import roc_auc_score  # for evaluating classifier
 # data:
 # kaggle jigsaw-toxic-comment-classification-challenge
