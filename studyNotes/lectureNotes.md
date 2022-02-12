@@ -165,4 +165,3 @@ $$ h_t = o_t \times tanh(c_t) $$
 ### Language modeling
 1. Next word prediction:  
    $$P(w_t | w_{t-1}, w_{t-2}, ...)$$ 
-2. 
