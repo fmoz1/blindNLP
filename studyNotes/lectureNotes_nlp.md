@@ -165,3 +165,33 @@ $$ h_t = o_t \times tanh(c_t) $$
 ### Language modeling
 1. Next word prediction:  
    $$P(w_t | w_{t-1}, w_{t-2}, ...)$$ 
+
+### Attention (~revisit later)
+1. Intro
+   * Many-to-one problem
+   * Extension of seq2seq in machine translation
+   * LSTM/GRU learns "long-term dependencies". How long?
+2.  Regular seq2seq vs. attention 
+   * Seq2seq: Encoder - $h(T_x) = s(0)$ -  Decoder ("last word")
+   * Attention model: 
+
+
+         s(0) = 0 > **Decoder**
+                  "context"
+                  **Attention**
+                  (h(1), h(2), ..., h(T_x)) 
+                  **Encoder**
+3. Attention model details 
+   * Decoder LSTM: s(t-1) -> s(t)
+   * Context vector 
+  $$ context = \sum_{t'=1}^{T_x} \alpha(t') h(t') $$ where $\alpha$ denotes attention weight. 
+  * Calculate $\alpha$ .
+  $$ \alpha_{t'} = NeuralNet([s_{t-1}, h_{t'}]), t' = 1...T_x $$
+
+  * Pseudo-code:
+  
+  `z = concat[s(t-1), h(t')]`
+
+  `z  = tanh(W_1 z + b_1) ` # layer 1 of ANN
+
+  `alpha(t') = softmax(w_2 z + b_2)` # layer 2 of ANN

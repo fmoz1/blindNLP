@@ -2,3 +2,5 @@ datafiles/*
 datafiles/
 model/*
 model/
+checkpoint/*
+checkpoint/

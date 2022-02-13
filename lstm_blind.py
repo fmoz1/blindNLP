@@ -7,12 +7,12 @@ import seaborn as sns
 import keras
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
-from keras.layers import Dense, Input, GlobalMaxPooling1D, MaxPooling1D
-from keras.layers import LSTM, Bidirectional, Dropout, Embedding
+from keras.layers import Dense, Input, GlobalMaxPooling1D, MaxPooling1D, Conv1D
+from keras.layers import LSTM, Dropout, Embedding, GRU, Bidirectional
 from keras.models import Model
-from keras import callbacks  # early stopping
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam, SGD  # note add tensorflow
-from sklearn.metrics import roc_auc_score  # for evaluating classifier
+from sklearn.metrics import accuracy_score, roc_auc_score  # for evaluating classifier
 import tensorflow as tf  # for tensorflow metrics
 
 # model params
@@ -21,9 +21,7 @@ MAX_VOCAB_SIZE = 20000
 EMBEDDING_DIM = 100
 VALIDATION_SPLIT = 0.2
 BATCH_SIZE = 2048  # make sure each batch has a chance of obtaining positive examples
-EPOCHS = 40
-EARLY_STOPPING = callbacks.EarlyStopping(monitor='val_loss',
-                                         mode='min', patience=5, restore_best_weights=True)
+EPOCHS = 35  # change epochs
 METRICS = [
     keras.metrics.TruePositives(name='tp'),
     keras.metrics.FalsePositives(name='fp'),
@@ -53,6 +51,9 @@ def plot_cm(labels, predictions, p=0.5):
     print('True Positives: ', cm[1][1])
     print('Total Positive: ', np.sum(cm[1]))
 
+
+# set seed
+np.random.seed(42)
 
 # load data
 file_path = './datafiles/blindPosts/'  # original csvs separated by company
@@ -155,26 +156,40 @@ print('Building model...')
 # train a lstm network with a single lstm
 input_ = Input(shape=(MAX_SEQUENCE_LENGTH,))
 x = embedding_layer(input_)
-x = LSTM(15, return_sequences=True)(x)
+x = LSTM(15, return_sequences=True)(x)  # \
+# x = Bidirectional(LSTM(15, return_sequences = True))(x)
+# x = GRU(15, return_sequences = True)(x)
 x = GlobalMaxPooling1D()(x)
 output = Dense(len(possible_labels), activation='sigmoid')(x)
 
-model = Model(input_, output)
-model.compile(
+model_lstm1 = Model(input_, output)
+model_lstm1.compile(
     loss='binary_crossentropy',
     optimizer=Adam(learning_rate=0.01),
     metrics=METRICS  # keep track of list of metrics
 )
 
+# set callbacks to prevent overfit and save as checkpts
+checkpoint_path = './checkpoint/cp.cpkt'
+checkpoint_dir = os.path.dirname(checkpoint_path)
+CALL_BACKS = [
+    # how many epochs without improvement you allow before the cb interferes
+    EarlyStopping(monitor='val_loss', patience=5,
+                  mode='min', min_delta=0.0001),
+    ModelCheckpoint(checkpoint_path, monitor='val_loss',
+                    save_best_only=True, mode='min'
+                    ),
+]
+# train model
 print('Training model...')
-r = model.fit(
+r = model_lstm1.fit(
     data,
     targets,
     batch_size=BATCH_SIZE,
     epochs=EPOCHS,
     validation_split=VALIDATION_SPLIT,
     class_weight=CLASS_WEIGHT,
-    callbacks=[EARLY_STOPPING],
+    callbacks=[CALL_BACKS],
 )
 
 # plot some data
@@ -196,11 +211,13 @@ plt.legend()
 plt.show()
 
 # eval model
-p = model.predict(data)
+p = model_lstm1.predict(data)
 plot_cm(targets[:, 1], p[:, 1])  # true vs predicted popular classifier
 
 # roc auc score
-auc = roc_auc_score(targets[:, 1], p[:, 1])  # 0.944 latest
+# 0.944 for lstm, 0.956 for bidirectional lstm
+auc = roc_auc_score(targets[:, 1], p[:, 1])
+print(auc)
 
 # save model
-model.save('./model/blind_lstm')
+model_lstm1.save('./model/blind_lstm_v1.h5')
