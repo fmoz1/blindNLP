@@ -52,4 +52,38 @@
    $$y  = softmax(a2) $$ 
    Note: $a_2$ and y are vectors of size K. 
 4. Generalization and overfitting 
-   * Regularization penalty: $$\lambda ||\theta||_2^2 $$ ($\lambd$ is a hyperparameter)
+   * Regularization penalty: $$\lambda ||\theta||_2^2 $$ ($\lambda$ is a hyperparameter)
+
+## Stochastic Gradient Descent
+1. Full GD
+
+
+       for i in range(num_epochs):
+           gradient = grad(X, Y, params)
+           params = params - learning_rate * gradient
+
+
+2. Mini-batch
+
+
+        for i in range(num_epochs):
+            shuffle(X,Y)
+            for Xb, Yb in get_batches(X,Y):
+                gradient = grad(Xb, Yb, params)
+                params = params - learning_rate * gradient
+
+
+3. Implementation 
+
+     
+     num_batches = int(np.ceil(N/B))
+     for j in range(num_batches):
+        Xb = X[j* B : (j+1) * B]
+        Yb = Y[j * B : (j+1) * B]
+
+
+4. Note
+   * Typical B = 8, 16, 32, 64, ... 
+   * Why do we want large B? 
+   * Larger B = more accurate
+   * Smaller B = more iteration (SGD is slower than other gradient descent)
