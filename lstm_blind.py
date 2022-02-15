@@ -14,6 +14,7 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam, SGD  # note add tensorflow
 from sklearn.metrics import accuracy_score, roc_auc_score  # for evaluating classifier
 import tensorflow as tf  # for tensorflow metrics
+import keras_tuner as kt  # for tuning learning rates, and hidden layers
 
 # model params
 MAX_SEQUENCE_LENGTH = 400  # truncate posts at length 400
@@ -151,13 +152,78 @@ embedding_layer = Embedding(
     input_length=MAX_SEQUENCE_LENGTH,
     trainable=False,  # keep the embeddings fixed
 )
-print('Building model...')
 
-# train a lstm network with a single lstm
+# hypermodel
+
+
+def model_builder(hp):
+    input_ = Input(shape=(MAX_SEQUENCE_LENGTH,))
+    x = embedding_layer(input_)
+    # tune the number of hidden units
+    hp_units = hp.Int('units', min_value=8, max_value=128, step=32)
+
+    x = Bidirectional(LSTM(units=hp_units, return_sequences=True))(x)
+    x = GlobalMaxPooling1D()(x)
+    output = Dense(len(possible_labels), activation='sigmoid')(x)
+
+    model = Model(input_, output)
+    # tune the learning rate
+    hp_learning_rate = hp.Choice('learning_rate', values=[1e-2, 1e-3, 1e-4])
+    model.compile(
+        loss='binary_crossentropy', optimizer=Adam(learning_rate=hp_learning_rate),
+        metrics=METRICS,
+    )
+    return model
+
+
+tuner = kt.Hyperband(model_builder,
+                     objective='val_accuracy',
+                     max_epochs=10,
+                     factor=3,
+                     directory='hyper',
+                     project_name='tuning')
+
+stop_early = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=5)
+tuner.search(data, targets,
+             epochs=EPOCHS, validation_split=VALIDATION_SPLIT,
+             callbacks=[stop_early],
+             batch_size=BATCH_SIZE,
+             class_weight=CLASS_WEIGHT
+             )
+# Get the optimal hyperparameters
+best_hps = tuner.get_best_hyperparameters(num_trials=1)[0]
+
+print(f"""
+The hyperparameter search is complete. The optimal number of units in the first densely-connected
+layer is {best_hps.get('units')} and the optimal learning rate for the optimizer
+is {best_hps.get('learning_rate')}.
+""")
+
+# Build the model with the optimal hyperparameters and train it on the data for 50 epochs
+model = tuner.hypermodel.build(best_hps)
+history = model.fit(data, targets,
+                    epochs=EPOCHS, validation_split=VALIDATION_SPLIT,
+                    batch_size=BATCH_SIZE,
+                    class_weight=CLASS_WEIGHT
+                    )
+val_loss_per_epoch = history.history['val_loss']
+best_epoch = val_acc_per_epoch.index(min(val_loss_per_epoch)) + 1
+print('Best epoch: %d' % (best_epoch,))
+
+#
+hypermodel = tuner.hypermodel.build(best_hps)
+# Retrain the model
+model_tuned = hypermodel.fit(data, targets, epochs=best_epoch, validation_split=VALIDATION_SPLIT,
+                             batch_size=BATCH_SIZE,
+                             class_weight=CLASS_WEIGHT
+                             )
+
+print('Building model...')
+# original: train a lstm network with a single lstm
 input_ = Input(shape=(MAX_SEQUENCE_LENGTH,))
 x = embedding_layer(input_)
-x = LSTM(15, return_sequences=True)(x)  # \
-# x = Bidirectional(LSTM(15, return_sequences = True))(x)
+# x = LSTM(15, return_sequences=True)(x)  # \
+x = Bidirectional(LSTM(15, return_sequences=True))(x)
 # x = GRU(15, return_sequences = True)(x)
 x = GlobalMaxPooling1D()(x)
 output = Dense(len(possible_labels), activation='sigmoid')(x)
