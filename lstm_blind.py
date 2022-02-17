@@ -83,6 +83,7 @@ df['controversial'] = np.where(
 # keep poster company if available
 df = df[['post_text', 'post_firm', 'popular', 'controversial']]
 
+print("===shape of the data: ", df.shape, "===")
 # imbalanced data correction
 # examine imbalance
 neg, pos = np.bincount(df['popular'])
@@ -156,8 +157,8 @@ print('Building model...')
 # train a lstm network with a single lstm
 input_ = Input(shape=(MAX_SEQUENCE_LENGTH,))
 x = embedding_layer(input_)
-x = LSTM(15, return_sequences=True)(x)  # \
-# x = Bidirectional(LSTM(15, return_sequences = True))(x)
+# x = LSTM(15, return_sequences=True)(x)  # \
+x = Bidirectional(LSTM(15, return_sequences=True))(x)
 # x = GRU(15, return_sequences = True)(x)
 x = GlobalMaxPooling1D()(x)
 output = Dense(len(possible_labels), activation='sigmoid')(x)
@@ -170,7 +171,7 @@ model_lstm1.compile(
 )
 
 # set callbacks to prevent overfit and save as checkpts
-checkpoint_path = './checkpoint/cp.cpkt'
+checkpoint_path = './checkpoint/temp.cpkt'
 checkpoint_dir = os.path.dirname(checkpoint_path)
 CALL_BACKS = [
     # how many epochs without improvement you allow before the cb interferes
@@ -217,7 +218,7 @@ plot_cm(targets[:, 1], p[:, 1])  # true vs predicted popular classifier
 # roc auc score
 # 0.944 for lstm, 0.956 for bidirectional lstm
 auc = roc_auc_score(targets[:, 1], p[:, 1])
-print(auc)
+print(auc)  # 0.934
 
 # save model
 model_lstm1.save('./model/blind_lstm_v1.h5')
