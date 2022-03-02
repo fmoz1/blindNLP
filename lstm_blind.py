@@ -1,9 +1,14 @@
+# use recurrent neural nets to predict viral posts on TeamBlind
+# basics
 import os
 import sys
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import random as python_random
+
+# keras: for processing texts and RNN
 import keras
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
@@ -12,16 +17,24 @@ from keras.layers import LSTM, Dropout, Embedding, GRU, Bidirectional
 from keras.models import Model
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 from tensorflow.keras.optimizers import Adam, SGD  # note add tensorflow
+
+# for mmodel evaluation
 from sklearn.metrics import accuracy_score, roc_auc_score  # for evaluating classifier
 import tensorflow as tf  # for tensorflow metrics
 
+# set seed for reproducibility
+os.environ['PYTHONHASHSEED'] = '0'
+np.random.seed(123)
+python_random.seed(123)
+tf.random.set_seed(1234)
+
 # model params
 MAX_SEQUENCE_LENGTH = 400  # truncate posts at length 400
-MAX_VOCAB_SIZE = 20000
-EMBEDDING_DIM = 100
+MAX_VOCAB_SIZE = 20000  # convention
+EMBEDDING_DIM = 100  # convention, may tune as a HP later
 VALIDATION_SPLIT = 0.2
 BATCH_SIZE = 2048  # make sure each batch has a chance of obtaining positive examples
-EPOCHS = 35  # change epochs
+EPOCHS = 20  # change epochs
 METRICS = [
     keras.metrics.TruePositives(name='tp'),
     keras.metrics.FalsePositives(name='fp'),
@@ -52,9 +65,6 @@ def plot_cm(labels, predictions, p=0.5):
     print('Total Positive: ', np.sum(cm[1]))
 
 
-# set seed
-np.random.seed(42)
-
 # load data
 file_path = './datafiles/blindPosts/'  # original csvs separated by company
 files = [file_path + f for f in os.listdir(file_path)]
@@ -84,14 +94,13 @@ df['controversial'] = np.where(
 df = df[['post_text', 'post_firm', 'popular', 'controversial']]
 
 print("===shape of the data: ", df.shape, "===")
+
 # imbalanced data correction
-# examine imbalance
 neg, pos = np.bincount(df['popular'])
 total = neg + pos
 INITIAL_BIAS = np.log([pos/neg])
-# class weights
-# scaling by total/2 helps keep the loss to a similar magnitude.
-# the sum of the weights of all examples stays the same.
+
+# calculate class weight
 weight_for_0 = (1 / neg) * (total / 2.0)
 weight_for_1 = (1 / pos) * (total / 2.0)
 CLASS_WEIGHT = {0: weight_for_0, 1: weight_for_1}
@@ -154,12 +163,12 @@ embedding_layer = Embedding(
 )
 print('Building model...')
 
-# train a lstm network with a single lstm
+# train a bidirectional lstm network
 input_ = Input(shape=(MAX_SEQUENCE_LENGTH,))
 x = embedding_layer(input_)
 # x = LSTM(15, return_sequences=True)(x)  # \
 x = Bidirectional(LSTM(15, return_sequences=True))(x)
-# x = GRU(15, return_sequences = True)(x)
+# x = GRU(15, return_sequences = True)(x) # gated recurrent unit
 x = GlobalMaxPooling1D()(x)
 output = Dense(len(possible_labels), activation='sigmoid')(x)
 
@@ -170,7 +179,7 @@ model_lstm1.compile(
     metrics=METRICS  # keep track of list of metrics
 )
 
-# set callbacks to prevent overfit and save as checkpts
+# set callbacks to prevent overfit and save into checkspoints
 checkpoint_path = './checkpoint/temp.cpkt'
 checkpoint_dir = os.path.dirname(checkpoint_path)
 CALL_BACKS = [
@@ -181,7 +190,8 @@ CALL_BACKS = [
                     save_best_only=True, mode='min'
                     ),
 ]
-# train model
+
+# start training
 print('Training model...')
 r = model_lstm1.fit(
     data,
@@ -211,7 +221,7 @@ plt.plot(r.history['val_recall'], label='val_recall')
 plt.legend()
 plt.show()
 
-# eval model
+# eval model using confusion matrix
 p = model_lstm1.predict(data)
 plot_cm(targets[:, 1], p[:, 1])  # true vs predicted popular classifier
 

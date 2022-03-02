@@ -4,4 +4,4 @@ model/*
 model/
 checkpoint/*
 checkpoint/
-*.png 
+*.png
