@@ -207,7 +207,7 @@ history = model.fit(data, targets,
                     class_weight=CLASS_WEIGHT
                     )
 val_loss_per_epoch = history.history['val_loss']
-best_epoch = val_acc_per_epoch.index(min(val_loss_per_epoch)) + 1
+best_epoch = val_loss_per_epoch.index(min(val_loss_per_epoch)) + 1
 print('Best epoch: %d' % (best_epoch,))
 
 #
